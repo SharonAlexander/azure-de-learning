@@ -1,7 +1,7 @@
 {
 	"name": "pl_config_driven_ingest",
 	"properties": {
-		"description": "For config driven pipelines",
+		"description": "For config driven pipelines.",
 		"activities": [
 			{
 				"name": "lookup_ingestion_config",
