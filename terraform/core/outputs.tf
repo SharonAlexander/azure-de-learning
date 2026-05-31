@@ -1,0 +1,9 @@
+output "resource_group_name"        { value = azurerm_resource_group.rg.name }
+output "location"                   { value = azurerm_resource_group.rg.location }
+output "storage_account_name"       { value = module.storage.storage_account_name }
+output "storage_account_id"         { value = module.storage.storage_account_id }
+output "primary_dfs_endpoint"       { value = module.storage.primary_dfs_endpoint }
+output "access_connector_id"        { value = azurerm_databricks_access_connector.ac.id }
+output "access_connector_principal" { value = azurerm_databricks_access_connector.ac.identity[0].principal_id }
+output "key_vault_id"               { value = module.keyvault.key_vault_id }
+output "key_vault_uri"              { value = module.keyvault.key_vault_uri }
