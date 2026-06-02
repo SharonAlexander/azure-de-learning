@@ -7,12 +7,12 @@ terraform {
   }
 
   # Remote state — uncomment after first apply
-  # backend "azurerm" {
-  #   resource_group_name  = "rg-delearn-dev" 
-  #   storage_account_name = "sadelearnnew0001"
-  #   container_name       = "tfstate"
-  #   key                  = "core.tfstate"
-  # }
+  backend "azurerm" {
+    resource_group_name  = "rg-delearn-dev" 
+    storage_account_name = "sadelearnnew0001"
+    container_name       = "tfstate"
+    key                  = "core.tfstate"
+  }
 }
 
 provider "azurerm" {

@@ -12,12 +12,12 @@ terraform {
   }
 
   # Remote state for services layer
-  # backend "azurerm" {
-  #   resource_group_name  = "rg-delearn-dev"
-  #   storage_account_name = "sadelearnnew0001"
-  #   container_name       = "tfstate"
-  #   key                  = "services.tfstate"
-  # }
+  backend "azurerm" {
+    resource_group_name  = "rg-delearn-dev"
+    storage_account_name = "sadelearnnew0001"
+    container_name       = "tfstate"
+    key                  = "services.tfstate"
+  }
 }
 
 provider "azurerm" {
