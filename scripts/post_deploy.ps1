@@ -10,10 +10,10 @@ param(
     [string]$SynapseWorkspace
 )
 
-Write-Host "=== Post-deploy setup ===" -ForegroundColor Cyan
+Write-Host '`n=== Post-deploy setup ===' -ForegroundColor Cyan
 
 # 1 — Push storage account key to Key Vault
-Write-Host "`n[1/4] Storing ADLS key in Key Vault..." -ForegroundColor Yellow
+Write-Host '`n[1/4] Storing ADLS key in Key Vault...' -ForegroundColor Yellow
 $storageKey = az storage account keys list `
     --account-name $StorageAccount `
     --resource-group $ResourceGroup `
@@ -25,10 +25,10 @@ az keyvault secret set `
     --name "adls-primary-key" `
     --value $storageKey | Out-Null
 
-Write-Host "      Done — adls-primary-key stored in Key Vault" -ForegroundColor Green
+Write-Host '      Done — adls-primary-key stored in Key Vault' -ForegroundColor Green
 
 # 2 — Add your laptop IP to SQL firewall
-Write-Host "`n[2/4] Adding laptop IP to SQL firewall..." -ForegroundColor Yellow
+Write-Host '`n[2/4] Adding laptop IP to SQL firewall...' -ForegroundColor Yellow
 $myIp = (Invoke-RestMethod -Uri "https://api.ipify.org")
 az sql server firewall-rule create `
     --resource-group $ResourceGroup `
@@ -36,10 +36,10 @@ az sql server firewall-rule create `
     --name "MyLaptop" `
     --start-ip-address $myIp `
     --end-ip-address $myIp | Out-Null
-Write-Host "      Done — $myIp added to SQL firewall" -ForegroundColor Green
+Write-Host '      Done — $myIp added to SQL firewall' -ForegroundColor Green
 
 # 3 — Create SQL tables for ADF logging
-Write-Host "`n[3/4] Creating SQL logging tables..." -ForegroundColor Yellow
+Write-Host '`n[3/4] Creating SQL logging tables...' -ForegroundColor Yellow
 $sqlScript = @"
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'pipeline_log')
 BEGIN
@@ -105,10 +105,10 @@ sqlcmd -S "$SqlServer.database.windows.net" `
        -d "sqldb-delearn-dev" `
        -U sqladmin `
        -i "$env:TEMP\setup.sql"
-Write-Host "      Done — SQL tables created" -ForegroundColor Green
+Write-Host '      Done — SQL tables created' -ForegroundColor Green
 
 # 4 — Verify all resources are reachable
-Write-Host "`n[4/4] Verifying resources..." -ForegroundColor Yellow
+Write-Host '`n[4/4] Verifying resources...' -ForegroundColor Yellow
 
 $resources = @(
     @{ Name = "Resource Group";   Command = { az group show --name $ResourceGroup --query name --output tsv } },
@@ -119,11 +119,11 @@ $resources = @(
 foreach ($r in $resources) {
     $result = & $r.Command
     if ($result) {
-        Write-Host "      ✓ $($r.Name): $result" -ForegroundColor Green
+        Write-Host '      ✓ $($r.Name): $result' -ForegroundColor Green
     } else {
-        Write-Host "      ✗ $($r.Name): NOT FOUND" -ForegroundColor Red
+        Write-Host '      ✗ $($r.Name): NOT FOUND' -ForegroundColor Red
     }
 }
 
-Write-Host "`n=== Post-deploy complete ===" -ForegroundColor Cyan
-Write-Host "Next: run scripts\databricks_setup.py" -ForegroundColor White
+Write-Host '`n=== Post-deploy complete ===' -ForegroundColor Cyan
+Write-Host 'Next: run scripts\databricks_setup.py' -ForegroundColor White
