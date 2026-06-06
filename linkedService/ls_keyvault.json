@@ -1,11 +1,11 @@
 {
 	"name": "ls_keyvault",
-	"type": "Microsoft.DataFactory/factories/linkedservices",
 	"properties": {
+		"annotations": [],
 		"type": "AzureKeyVault",
 		"typeProperties": {
 			"baseUrl": "https://kv-delearn-0001.vault.azure.net/"
-		},
-		"annotations": []
-	}
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/linkedservices"
 }
