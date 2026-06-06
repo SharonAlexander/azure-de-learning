@@ -1,0 +1,22 @@
+{
+    "name": "ds_rest_portfolios",
+    "properties": {
+        "type": "RestResource",
+        "linkedServiceName": {
+            "referenceName": "ls_fincore_http_api",
+            "type": "LinkedServiceReference"
+        },
+        "parameters": {
+            "p_valuation_date": {
+                "type": "string"
+            }
+        },
+        "typeProperties": {
+            "relativeUrl": {
+                "value": "@concat('/api/v1/portfolios/all?date=', dataset().p_valuation_date)",
+                "type": "Expression"
+            }
+        },
+        "schema": []
+    }
+}

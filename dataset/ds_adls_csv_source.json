@@ -1,0 +1,30 @@
+{
+    "name": "ds_adls_csv_source",
+    "properties": {
+        "type": "DelimitedText",
+        "linkedServiceName": {
+            "referenceName": "ls_adls_medallion",
+            "type": "LinkedServiceReference"
+        },
+        "parameters": {
+            "p_folder_path": {
+                "type": "string"
+            }
+        },
+        "typeProperties": {
+            "location": {
+                "type": "AzureDataLakeStoreLocation",
+                "folderPath": {
+                    "value": "@dataset().p_folder_path",
+                    "type": "Expression"
+                }
+            },
+            "columnDelimiter": ",",
+            "rowDelimiter": "\n",
+            "firstRowAsHeader": true,
+            "quoteChar": "\"",
+            "escapeChar": "\\"
+        },
+        "schema": []
+    }
+}

@@ -1,0 +1,359 @@
+{
+    "name": "pl_ingest_sql_to_adls",
+    "properties": {
+        "description": "Config-driven pipeline — ingests all FinCore SQL source tables to ADLS raw zone as Parquet. Supports FULL and INCREMENTAL load types.",
+        "parameters": {
+            "p_load_date": {
+                "type": "string",
+                "defaultValue": "@formatDateTime(utcNow(), 'yyyy-MM-dd')"
+            }
+        },
+        "variables": {
+            "v_run_start": {
+                "type": "String"
+            }
+        },
+        "activities": [
+            {
+                "name": "set_run_start",
+                "type": "SetVariable",
+                "typeProperties": {
+                    "variableName": "v_run_start",
+                    "value": {
+                        "value": "@utcNow()",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "lookup_ingestion_config",
+                "type": "Lookup",
+                "dependsOn": [
+                    {
+                        "activity": "set_run_start",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "typeProperties": {
+                    "source": {
+                        "type": "AzureSqlSource",
+                        "sqlReaderQuery": "SELECT config_id, source_name, source_schema, source_table, target_folder, load_type, watermark_col FROM dbo.fincore_ingestion_config WHERE is_active = 1 ORDER BY config_id",
+                        "queryTimeout": "02:00:00"
+                    },
+                    "dataset": {
+                        "referenceName": "ds_sql_pipeline_log",
+                        "type": "DatasetReference"
+                    },
+                    "firstRowOnly": false
+                }
+            },
+            {
+                "name": "foreach_config_row",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "lookup_ingestion_config",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('lookup_ingestion_config').output.value",
+                        "type": "Expression"
+                    },
+                    "isSequential": false,
+                    "batchCount": 4,
+                    "activities": [
+                        {
+                            "name": "lookup_watermark",
+                            "type": "Lookup",
+                            "typeProperties": {
+                                "source": {
+                                    "type": "AzureSqlSource",
+                                    "sqlReaderQuery": {
+                                        "value": "@if(equals(item().load_type, 'INCREMENTAL'), concat('SELECT last_load_datetime FROM dbo.fincore_watermark WHERE source_name = ''', item().source_name, ''''), 'SELECT CAST(''1900-01-01'' AS DATETIME2) AS last_load_datetime')",
+                                        "type": "Expression"
+                                    },
+                                    "queryTimeout": "00:10:00"
+                                },
+                                "dataset": {
+                                    "referenceName": "ds_sql_pipeline_log",
+                                    "type": "DatasetReference"
+                                },
+                                "firstRowOnly": true
+                            }
+                        },
+                        {
+                            "name": "copy_sql_to_parquet",
+                            "type": "Copy",
+                            "dependsOn": [
+                                {
+                                    "activity": "lookup_watermark",
+                                    "dependencyConditions": ["Succeeded"]
+                                }
+                            ],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "AzureSqlSource",
+                                    "sqlReaderQuery": {
+                                        "value": "@if(equals(item().load_type, 'INCREMENTAL'), concat('SELECT * FROM ', item().source_schema, '.', item().source_table, ' WHERE ', item().watermark_col, ' > ''', activity('lookup_watermark').output.firstRow.last_load_datetime, ''''), concat('SELECT * FROM ', item().source_schema, '.', item().source_table))",
+                                        "type": "Expression"
+                                    },
+                                    "queryTimeout": "02:00:00",
+                                    "partitionOption": "None"
+                                },
+                                "sink": {
+                                    "type": "ParquetSink",
+                                    "storeSettings": {
+                                        "type": "AzureDataLakeStoreWriteSettings"
+                                    },
+                                    "formatSettings": {
+                                        "type": "ParquetWriteSettings"
+                                    }
+                                },
+                                "enableStaging": false,
+                                "validateDataConsistency": false,
+                                "translator": {
+                                    "type": "TabularTranslator",
+                                    "typeConversion": true,
+                                    "typeConversionSettings": {
+                                        "allowDataTruncation": true,
+                                        "treatBooleanAsNumber": false
+                                    }
+                                }
+                            },
+                            "inputs": [
+                                {
+                                    "referenceName": "ds_fincore_sql_source",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "p_schema_name": {
+                                            "value": "@item().source_schema",
+                                            "type": "Expression"
+                                        },
+                                        "p_table_name": {
+                                            "value": "@item().source_table",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ],
+                            "outputs": [
+                                {
+                                    "referenceName": "ds_adls_parquet_sink",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "p_folder_path": {
+                                            "value": "@concat(item().target_folder, '/', pipeline().parameters.p_load_date)",
+                                            "type": "Expression"
+                                        },
+                                        "p_file_name": {
+                                            "value": "@concat(item().source_name, '.parquet')",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "log_success",
+                            "type": "SqlServerStoredProcedure",
+                            "dependsOn": [
+                                {
+                                    "activity": "copy_sql_to_parquet",
+                                    "dependencyConditions": ["Succeeded"]
+                                }
+                            ],
+                            "typeProperties": {
+                                "storedProcedureName": "dbo.usp_log_fincore_pipeline",
+                                "storedProcedureParameters": {
+                                    "pipeline_name": {
+                                        "value": {
+                                            "value": "@pipeline().Pipeline",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "run_id": {
+                                        "value": {
+                                            "value": "@pipeline().RunId",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "source_name": {
+                                        "value": {
+                                            "value": "@item().source_name",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "status": {
+                                        "value": "SUCCESS",
+                                        "type": "String"
+                                    },
+                                    "rows_read": {
+                                        "value": {
+                                            "value": "@activity('copy_sql_to_parquet').output.rowsRead",
+                                            "type": "Expression"
+                                        },
+                                        "type": "Int32"
+                                    },
+                                    "rows_written": {
+                                        "value": {
+                                            "value": "@activity('copy_sql_to_parquet').output.rowsCopied",
+                                            "type": "Expression"
+                                        },
+                                        "type": "Int32"
+                                    },
+                                    "error_message": {
+                                        "value": "",
+                                        "type": "String"
+                                    },
+                                    "run_start": {
+                                        "value": {
+                                            "value": "@variables('v_run_start')",
+                                            "type": "Expression"
+                                        },
+                                        "type": "DateTime"
+                                    },
+                                    "run_end": {
+                                        "value": {
+                                            "value": "@utcNow()",
+                                            "type": "Expression"
+                                        },
+                                        "type": "DateTime"
+                                    },
+                                    "load_date": {
+                                        "value": {
+                                            "value": "@pipeline().parameters.p_load_date",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    }
+                                }
+                            },
+                            "linkedServiceName": {
+                                "referenceName": "ls_sql_de",
+                                "type": "LinkedServiceReference"
+                            }
+                        },
+                        {
+                            "name": "update_watermark",
+                            "type": "SqlServerStoredProcedure",
+                            "dependsOn": [
+                                {
+                                    "activity": "log_success",
+                                    "dependencyConditions": ["Succeeded"]
+                                }
+                            ],
+                            "typeProperties": {
+                                "storedProcedureName": "dbo.usp_update_fincore_watermark",
+                                "storedProcedureParameters": {
+                                    "source_name": {
+                                        "value": {
+                                            "value": "@item().source_name",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "last_load_datetime": {
+                                        "value": {
+                                            "value": "@variables('v_run_start')",
+                                            "type": "Expression"
+                                        },
+                                        "type": "DateTime"
+                                    }
+                                }
+                            },
+                            "linkedServiceName": {
+                                "referenceName": "ls_sql_de",
+                                "type": "LinkedServiceReference"
+                            }
+                        },
+                        {
+                            "name": "log_failure",
+                            "type": "SqlServerStoredProcedure",
+                            "dependsOn": [
+                                {
+                                    "activity": "copy_sql_to_parquet",
+                                    "dependencyConditions": ["Failed"]
+                                }
+                            ],
+                            "typeProperties": {
+                                "storedProcedureName": "dbo.usp_log_fincore_pipeline",
+                                "storedProcedureParameters": {
+                                    "pipeline_name": {
+                                        "value": {
+                                            "value": "@pipeline().Pipeline",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "run_id": {
+                                        "value": {
+                                            "value": "@pipeline().RunId",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "source_name": {
+                                        "value": {
+                                            "value": "@item().source_name",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "status": {
+                                        "value": "FAILED",
+                                        "type": "String"
+                                    },
+                                    "rows_read": {
+                                        "value": "0",
+                                        "type": "Int32"
+                                    },
+                                    "rows_written": {
+                                        "value": "0",
+                                        "type": "Int32"
+                                    },
+                                    "error_message": {
+                                        "value": {
+                                            "value": "@activity('copy_sql_to_parquet').error.message",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    },
+                                    "run_start": {
+                                        "value": {
+                                            "value": "@variables('v_run_start')",
+                                            "type": "Expression"
+                                        },
+                                        "type": "DateTime"
+                                    },
+                                    "run_end": {
+                                        "value": {
+                                            "value": "@utcNow()",
+                                            "type": "Expression"
+                                        },
+                                        "type": "DateTime"
+                                    },
+                                    "load_date": {
+                                        "value": {
+                                            "value": "@pipeline().parameters.p_load_date",
+                                            "type": "Expression"
+                                        },
+                                        "type": "String"
+                                    }
+                                }
+                            },
+                            "linkedServiceName": {
+                                "referenceName": "ls_sql_de",
+                                "type": "LinkedServiceReference"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}

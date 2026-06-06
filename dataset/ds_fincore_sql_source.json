@@ -1,0 +1,30 @@
+{
+    "name": "ds_fincore_sql_source",
+    "properties": {
+        "type": "AzureSqlTable",
+        "linkedServiceName": {
+            "referenceName": "ls_fincore_source_sql",
+            "type": "LinkedServiceReference"
+        },
+        "parameters": {
+            "p_schema_name": {
+                "type": "string",
+                "defaultValue": "dbo"
+            },
+            "p_table_name": {
+                "type": "string"
+            }
+        },
+        "typeProperties": {
+            "schema": {
+                "value": "@dataset().p_schema_name",
+                "type": "Expression"
+            },
+            "table": {
+                "value": "@dataset().p_table_name",
+                "type": "Expression"
+            }
+        },
+        "schema": []
+    }
+}

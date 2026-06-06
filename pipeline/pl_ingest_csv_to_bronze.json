@@ -1,0 +1,276 @@
+{
+    "name": "pl_ingest_csv_to_bronze",
+    "properties": {
+        "description": "Scans raw/fincore/trades/ for CSV files and copies them to bronze/fincore/trades/ as Parquet using Auto-detect schema.",
+        "parameters": {
+            "p_load_date": {
+                "type": "string",
+                "defaultValue": "@formatDateTime(utcNow(), 'yyyy-MM-dd')"
+            },
+            "p_year": {
+                "type": "string",
+                "defaultValue": "@formatDateTime(utcNow(), 'yyyy')"
+            },
+            "p_month": {
+                "type": "string",
+                "defaultValue": "@formatDateTime(utcNow(), 'MM')"
+            }
+        },
+        "variables": {
+            "v_run_start": {
+                "type": "String"
+            }
+        },
+        "activities": [
+            {
+                "name": "set_run_start",
+                "type": "SetVariable",
+                "typeProperties": {
+                    "variableName": "v_run_start",
+                    "value": {
+                        "value": "@utcNow()",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "copy_csv_to_parquet",
+                "type": "Copy",
+                "dependsOn": [
+                    {
+                        "activity": "set_run_start",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "typeProperties": {
+                    "source": {
+                        "type": "DelimitedTextSource",
+                        "storeSettings": {
+                            "type": "AzureDataLakeStoreReadSettings",
+                            "recursive": false,
+                            "wildcardFolderPath": {
+                                "value": "@concat('raw/fincore/trades/', pipeline().parameters.p_year, '/', pipeline().parameters.p_month)",
+                                "type": "Expression"
+                            },
+                            "wildcardFileName": "*.csv",
+                            "enablePartitionDiscovery": false
+                        },
+                        "formatSettings": {
+                            "type": "DelimitedTextReadSettings"
+                        }
+                    },
+                    "sink": {
+                        "type": "ParquetSink",
+                        "storeSettings": {
+                            "type": "AzureDataLakeStoreWriteSettings"
+                        },
+                        "formatSettings": {
+                            "type": "ParquetWriteSettings"
+                        }
+                    },
+                    "enableStaging": false,
+                    "validateDataConsistency": false,
+                    "translator": {
+                        "type": "TabularTranslator",
+                        "typeConversion": true,
+                        "typeConversionSettings": {
+                            "allowDataTruncation": true,
+                            "treatBooleanAsNumber": false
+                        }
+                    }
+                },
+                "inputs": [
+                    {
+                        "referenceName": "ds_adls_csv_source",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "p_folder_path": {
+                                "value": "@concat('raw/fincore/trades/', pipeline().parameters.p_year, '/', pipeline().parameters.p_month)",
+                                "type": "Expression"
+                            }
+                        }
+                    }
+                ],
+                "outputs": [
+                    {
+                        "referenceName": "ds_adls_parquet_sink",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "p_folder_path": {
+                                "value": "@concat('raw/fincore/trades/', pipeline().parameters.p_year, '/', pipeline().parameters.p_month)",
+                                "type": "Expression"
+                            },
+                            "p_file_name": {
+                                "value": "@concat('trades_', pipeline().parameters.p_year, pipeline().parameters.p_month, '.parquet')",
+                                "type": "Expression"
+                            }
+                        }
+                    }
+                ]
+            },
+            {
+                "name": "log_csv_success",
+                "type": "SqlServerStoredProcedure",
+                "dependsOn": [
+                    {
+                        "activity": "copy_csv_to_parquet",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "typeProperties": {
+                    "storedProcedureName": "dbo.usp_log_fincore_pipeline",
+                    "storedProcedureParameters": {
+                        "pipeline_name": {
+                            "value": {
+                                "value": "@pipeline().Pipeline",
+                                "type": "Expression"
+                            },
+                            "type": "String"
+                        },
+                        "run_id": {
+                            "value": {
+                                "value": "@pipeline().RunId",
+                                "type": "Expression"
+                            },
+                            "type": "String"
+                        },
+                        "source_name": {
+                            "value": {
+                                "value": "@concat('trades_csv_', pipeline().parameters.p_year, '_', pipeline().parameters.p_month)",
+                                "type": "Expression"
+                            },
+                            "type": "String"
+                        },
+                        "status": {
+                            "value": "SUCCESS",
+                            "type": "String"
+                        },
+                        "rows_read": {
+                            "value": {
+                                "value": "@activity('copy_csv_to_parquet').output.rowsRead",
+                                "type": "Expression"
+                            },
+                            "type": "Int32"
+                        },
+                        "rows_written": {
+                            "value": {
+                                "value": "@activity('copy_csv_to_parquet').output.rowsCopied",
+                                "type": "Expression"
+                            },
+                            "type": "Int32"
+                        },
+                        "error_message": {
+                            "value": "",
+                            "type": "String"
+                        },
+                        "run_start": {
+                            "value": {
+                                "value": "@variables('v_run_start')",
+                                "type": "Expression"
+                            },
+                            "type": "DateTime"
+                        },
+                        "run_end": {
+                            "value": {
+                                "value": "@utcNow()",
+                                "type": "Expression"
+                            },
+                            "type": "DateTime"
+                        },
+                        "load_date": {
+                            "value": {
+                                "value": "@pipeline().parameters.p_load_date",
+                                "type": "Expression"
+                            },
+                            "type": "String"
+                        }
+                    }
+                },
+                "linkedServiceName": {
+                    "referenceName": "ls_sql_de",
+                    "type": "LinkedServiceReference"
+                }
+            },
+            {
+                "name": "log_csv_failure",
+                "type": "SqlServerStoredProcedure",
+                "dependsOn": [
+                    {
+                        "activity": "copy_csv_to_parquet",
+                        "dependencyConditions": ["Failed"]
+                    }
+                ],
+                "typeProperties": {
+                    "storedProcedureName": "dbo.usp_log_fincore_pipeline",
+                    "storedProcedureParameters": {
+                        "pipeline_name": {
+                            "value": {
+                                "value": "@pipeline().Pipeline",
+                                "type": "Expression"
+                            },
+                            "type": "String"
+                        },
+                        "run_id": {
+                            "value": {
+                                "value": "@pipeline().RunId",
+                                "type": "Expression"
+                            },
+                            "type": "String"
+                        },
+                        "source_name": {
+                            "value": {
+                                "value": "@concat('trades_csv_', pipeline().parameters.p_year, '_', pipeline().parameters.p_month)",
+                                "type": "Expression"
+                            },
+                            "type": "String"
+                        },
+                        "status": {
+                            "value": "FAILED",
+                            "type": "String"
+                        },
+                        "rows_read": {
+                            "value": "0",
+                            "type": "Int32"
+                        },
+                        "rows_written": {
+                            "value": "0",
+                            "type": "Int32"
+                        },
+                        "error_message": {
+                            "value": {
+                                "value": "@activity('copy_csv_to_parquet').error.message",
+                                "type": "Expression"
+                            },
+                            "type": "String"
+                        },
+                        "run_start": {
+                            "value": {
+                                "value": "@variables('v_run_start')",
+                                "type": "Expression"
+                            },
+                            "type": "DateTime"
+                        },
+                        "run_end": {
+                            "value": {
+                                "value": "@utcNow()",
+                                "type": "Expression"
+                            },
+                            "type": "DateTime"
+                        },
+                        "load_date": {
+                            "value": {
+                                "value": "@pipeline().parameters.p_load_date",
+                                "type": "Expression"
+                            },
+                            "type": "String"
+                        }
+                    }
+                },
+                "linkedServiceName": {
+                    "referenceName": "ls_sql_de",
+                    "type": "LinkedServiceReference"
+                }
+            }
+        ]
+    }
+}

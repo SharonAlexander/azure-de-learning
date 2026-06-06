@@ -1,0 +1,32 @@
+{
+    "name": "ds_adls_json_sink",
+    "properties": {
+        "type": "Json",
+        "linkedServiceName": {
+            "referenceName": "ls_adls_medallion",
+            "type": "LinkedServiceReference"
+        },
+        "parameters": {
+            "p_folder_path": {
+                "type": "string"
+            },
+            "p_file_name": {
+                "type": "string"
+            }
+        },
+        "typeProperties": {
+            "location": {
+                "type": "AzureDataLakeStoreLocation",
+                "fileName": {
+                    "value": "@dataset().p_file_name",
+                    "type": "Expression"
+                },
+                "folderPath": {
+                    "value": "@dataset().p_folder_path",
+                    "type": "Expression"
+                }
+            }
+        },
+        "schema": []
+    }
+}

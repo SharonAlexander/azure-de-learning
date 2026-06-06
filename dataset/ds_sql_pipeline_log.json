@@ -1,0 +1,15 @@
+{
+    "name": "ds_sql_pipeline_log",
+    "properties": {
+        "type": "AzureSqlTable",
+        "linkedServiceName": {
+            "referenceName": "ls_sql_de",
+            "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+            "schema": "dbo",
+            "table": "fincore_pipeline_log"
+        },
+        "schema": []
+    }
+}
