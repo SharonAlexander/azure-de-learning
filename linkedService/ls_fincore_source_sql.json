@@ -1,0 +1,31 @@
+{
+	"name": "ls_fincore_source_sql",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"connectVia": {
+			"referenceName": "ir-selfhosted-fincore",
+			"type": "IntegrationRuntimeReference"
+		},
+		"type": "AzureSqlDatabase",
+		"typeProperties": {
+			"connectionString": {
+				"type": "SecureString",
+				"value": "**********"
+			},
+			"password": {
+				"secretName": "fincore-sql-password",
+				"store": {
+					"referenceName": "ls_keyvault",
+					"type": "LinkedServiceReference"
+				},
+				"type": "AzureKeyVaultSecret"
+			},
+			"servicePrincipalId": "",
+			"servicePrincipalKey": {
+				"type": "SecureString",
+				"value": "**********"
+			}
+		},
+		"annotations": []
+	}
+}

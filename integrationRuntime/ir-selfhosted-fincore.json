@@ -1,0 +1,10 @@
+{
+	"name": "ir-selfhosted-fincore",
+	"properties": {
+		"type": "SelfHosted",
+		"description": "Self-hosted IR for FinCore on-prem source simulation",
+		"typeProperties": {
+			"selfContainedInteractiveAuthoringEnabled": false
+		}
+	}
+}

@@ -1,0 +1,11 @@
+{
+	"name": "ls_adls_medallion",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"type": "AzureBlobFS",
+		"typeProperties": {
+			"url": "https://sadelearnnew0001.dfs.core.windows.net"
+		},
+		"annotations": []
+	}
+}

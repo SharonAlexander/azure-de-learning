@@ -1,0 +1,15 @@
+{
+	"name": "adf-delearn-dev",
+	"properties": {
+		"trustModeClaimForMi": {
+			"value": "Disabled",
+			"editable": true
+		}
+	},
+	"location": "eastus2",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "4192f44b-f178-493b-90e4-5a7201da911f",
+		"tenantId": "ce60634c-7566-40db-8dec-7584bc474f45"
+	}
+}
